@@ -14,6 +14,8 @@ export default function Chat({ clientId }: { clientId: string }) {
     const [docs, setDocs] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
     const [uploading, setUploading] = useState(false)
+    const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
+    const [clearingContext, setClearingContext] = useState(false)
 
     const fileRef = useRef<HTMLInputElement | null>(null)
     const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -104,6 +106,47 @@ export default function Chat({ clientId }: { clientId: string }) {
         }
     }
 
+    async function deletePdf(docId: string) {
+        if (!docId) return
+
+        setDeletingDocId(docId)
+
+        try {
+            await axios.delete('/api/pdf', {
+                params: {
+                    client_id: clientId,
+                    doc_id: docId,
+                },
+            })
+
+            setDocs((d) => d.filter((doc) => doc.id !== docId))
+            alert('Document context deleted')
+        } catch (e) {
+            alert('Failed to delete document context')
+        } finally {
+            setDeletingDocId(null)
+        }
+    }
+
+    async function clearContext() {
+        if (!confirm('Clear all uploaded document context for this client?')) {
+            return
+        }
+
+        setClearingContext(true)
+
+        try {
+            await axios.delete(`/api/context/clear/${clientId}`)
+            setDocs([])
+            setMessages([])
+            alert('Context cleared successfully')
+        } catch (e) {
+            alert('Failed to clear context')
+        } finally {
+            setClearingContext(false)
+        }
+    }
+
     return (
         <div className="h-screen flex bg-[#0B0F19]">
             {/* Sidebar */}
@@ -157,12 +200,21 @@ export default function Chat({ clientId }: { clientId: string }) {
                 </div>
 
                 <div className="flex-1 overflow-auto p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-semibold">Knowledge Base</h2>
+                    <div className="flex items-center justify-between mb-4 gap-3">
+                        <div>
+                            <h2 className="font-semibold">Knowledge Base</h2>
+                            <p className="text-xs text-gray-400">
+                                Stored PDF context for this client
+                            </p>
+                        </div>
 
-                        <span className="text-xs bg-white/10 px-2 py-1 rounded-full">
-                            {docs.length}
-                        </span>
+                        <button
+                            onClick={clearContext}
+                            disabled={clearingContext}
+                            className="text-xs rounded-full border border-white/10 bg-white/5 px-3 py-1 transition hover:bg-white/10 disabled:opacity-50"
+                        >
+                            {clearingContext ? 'Clearing...' : 'Clear context'}
+                        </button>
                     </div>
 
                     <div className="space-y-3">
@@ -188,7 +240,16 @@ export default function Chat({ clientId }: { clientId: string }) {
                                         </p>
                                     </div>
 
-                                    <div className="w-2 h-2 bg-green-400 rounded-full mt-2" />
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-green-400 rounded-full mt-2" />
+                                        <button
+                                            onClick={() => deletePdf(d.id)}
+                                            disabled={deletingDocId === d.id}
+                                            className="text-xs rounded-full border border-white/10 bg-white/5 px-3 py-1 transition hover:bg-white/10 disabled:opacity-50"
+                                        >
+                                            {deletingDocId === d.id ? 'Deleting...' : 'Delete'}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}
